@@ -1,0 +1,9 @@
+[submodule "extern/json"]
+	path = extern/json
+	url = https://github.com/nlohmann/json
+[submodule "extern/curlpp"]
+	path = extern/curlpp
+	url = https://github.com/jpbarrette/curlpp
+[submodule "extern/simple-lua"]
+	path = extern/simple-lua
+	url = https://github.com/maxortner01/simple-lua
