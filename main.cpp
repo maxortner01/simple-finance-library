@@ -5,17 +5,21 @@ using namespace sfl;
 struct Test : BaseStrategy
 {
     void step(
-        const std::shared_ptr<Company>& company,
-        std::span<const Timepoint> history, 
-        const Timepoint& data) override
+        std::span<const Stop> history, 
+        const Stop& data) override
     {
-        std::cout << sfl::stringify(data.time, "%F") << " at " << data.price << " with " << history.size() << " historical data points.\n";
+        for (const auto& c : data.points)
+        { 
+            auto company = Company::get(c.first);
+            if (company->name == "Microsoft Corporation")
+                std::cout << sfl::stringify(data.time, "%F") << " at " << c.second.price << " with " << history.size() << " historical data points.\n";
+        }
     }
 };
 
 int main()
 {
-    addCompany("MSFT", 2023);
+    //addCompany("MSFT", 2023);
 
     Driver<Test> driver(DATABASE_DIR "/2023.sft");
     driver.run();
