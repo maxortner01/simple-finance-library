@@ -4,16 +4,64 @@ using namespace sfl;
 
 struct Test : BaseStrategy
 {
-    void step(
-        std::span<const Stop> history, 
-        const Stop& data) override
+    bool bought = false;
+
+    Test()
     {
-        for (const auto& c : data.points)
+        principal = 1000.0;
+    }
+
+    bool direction = 0; // 0 for down, 1 for up
+
+    double last_price;
+
+    uint32_t index = 0;
+
+    // Simple strategy that buys if we're at a bottom and sells a stock if it makes over 10%
+    void step() override
+    {
+        if (!index) { index++; return; }
+
+        for (const auto& c : current_stop.points)
         { 
             auto company = Company::get(c.first);
             if (company->name == "Microsoft Corporation")
-                std::cout << sfl::stringify(data.time, "%F") << " at " << c.second.price << " with " << history.size() << " historical data points.\n";
+            {   
+                if (last_price < c.second.price && !direction)
+                {
+                    direction = 1;
+                    if (buy(c.first))
+                        std::cout << "Bought Microsoft on " << sfl::stringify(current_stop.time, "%b %e, %Y") << " for $" << c.second.price << "\n";
+                }
+                else if (last_price > c.second.price && direction)
+                {
+                    direction = 0;
+                    std::vector<double> profits(owned.size());
+                    for (uint32_t i = 0; i < profits.size(); i++)
+                        profits[i] = (owned[i].current_value - owned[i].bought.price) / owned[i].bought.price;
+
+                    const auto it = std::max_element(profits.begin(), profits.end());
+                    if (*it > 0.1)
+                        if (sell(owned.begin() + std::distance(profits.begin(), it)))
+                            std::cout << "Sold Microsoft on " << sfl::stringify(current_stop.time, "%b %e, %Y") << " for $" << c.second.price << "\n";
+                }
+
+                last_price = c.second.price;
+            }
         }
+
+        const auto value = [&](const Stop& current_stop) -> double
+        {
+            double v = principal;
+            for (const auto& s : owned)
+                v += s.current_value;
+            return v;
+        };
+
+        const auto perc_change = (value(current_stop) - 1000.0) / 1000.0 * 100.0;
+        std::cout << sfl::stringify(current_stop.time, "%b %e, %Y %r") << " - " << "Portfolio value: $" << value(current_stop) << " " << (perc_change > 0 ? "+" : "-") << "%" << perc_change << "\n";
+
+        index++;
     }
 };
 

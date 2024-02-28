@@ -24,14 +24,121 @@ struct Stop
     //std::vector<Timepoint> points;
 };  
 
+struct Portfolio
+{
+    struct Event
+    {
+        enum Type
+        {
+            Buy, Sell
+        } type;
+        Timepoint timepoint;
+        util::id_t company;
+    };
+
+    double principal;
+    std::unordered_map<util::id_t, uint32_t> owned_stocks;
+    std::vector<Event> events;
+
+    double profit(const Stop& current_stop) const
+    {
+        double v = 0.0;
+        for (const auto& e : events)
+            v += (current_stop.points.at(e.company).price - e.timepoint.price) * (e.type == Event::Buy ? 1.0 : -1.0);
+        return v;
+    }
+
+    double value(const Stop& current_stop) const
+    {
+        double v = principal;
+        for (const auto& e : events)
+            v += e.timepoint.price * (e.type == Event::Buy ? 1.0 : -1.0);
+        return v + profit(current_stop);
+    }
+};
+
+struct Stock
+{
+    util::id_t company;
+    double current_value;
+    Timepoint bought;
+};
+
 struct BaseStrategy
 {
+    //Portfolio portfolio;
+    double principal;
+    std::vector<Stock> owned;
+    std::span<const Stop> history;
+    Stop current_stop;
+
+    bool buy(const util::id_t& company_id)
+    {
+        if (!current_stop.points.count(company_id))
+            return false;
+
+        const auto& timepoint = current_stop.points[company_id];
+        if (principal < timepoint.price)
+            return false;
+
+        principal -= timepoint.price;
+        owned.push_back(Stock{
+            .bought = timepoint,
+            .company = company_id,
+            .current_value = timepoint.price
+        });
+
+        return true;
+    }
+
+    bool sell(std::vector<Stock>::iterator stock)
+    {
+        principal += stock->current_value;
+        owned.erase(stock);
+        return true;
+    }
+
+    /*
+    bool buy(const util::id_t& company_id)
+    {
+        if (!current_stop.points.count(company_id) ||
+             portfolio.principal < current_stop.points[company_id].price)
+                return false;
+
+        portfolio.owned_stocks[company_id]++;
+        portfolio.principal -= current_stop.points[company_id].price;
+        portfolio.events.push_back(Portfolio::Event {
+            .type = Portfolio::Event::Buy,
+            .timepoint = current_stop.points[company_id],
+            .company = company_id
+        });
+
+        return true;
+    }
+
+    bool sell(const util::id_t& company_id)
+    {
+        if (!current_stop.points.count(company_id) ||
+            !portfolio.owned_stocks.count(company_id) ||
+            !portfolio.owned_stocks[company_id] ||
+            portfolio.principal < current_stop.points[company_id].price)
+            return false;
+
+        portfolio.owned_stocks[company_id]--;
+        portfolio.principal += current_stop.points[company_id].price;
+        portfolio.events.push_back(Portfolio::Event {
+            .type = Portfolio::Event::Sell,
+            .timepoint = current_stop.points[company_id],
+            .company = company_id
+        });
+
+        return true;
+    }*/
+
     virtual void start() {}
     virtual void stop()  {}
 
-    virtual void step(
-        std::span<const Stop> history, 
-        const Stop& data) = 0;
+    virtual void step() = 0;
 };
 
 template<class T, class U>
@@ -209,8 +316,8 @@ struct Driver
                     std::pair(
                         d1->companyID(),
                         Timepoint {
-                            .price     = price_a * t + (1 - t) * price_b, // interpolation function
-                            .time      = static_cast<time_t>(g_time)
+                            .price = price_a * (1 - t) + t * price_b, // interpolation function
+                            .time  = static_cast<time_t>(g_time)
                         }
                     )
                 );
@@ -223,10 +330,13 @@ struct Driver
         // Go through each group and find the missing company and interpolate value
         for (uint32_t i = 0; i < stops.size(); i++)
         {
-            strategy->step(
-                std::span<const Stop>(stops.begin(), i),
-                stops[i]
-            );
+            strategy->history = std::span<const Stop>(stops.begin(), i);
+            strategy->current_stop = stops[i];
+
+            for (Stock& s : strategy->owned)
+                s.current_value = stops[i].points[s.company].price;
+
+            strategy->step();
         }
     }
 
