@@ -15,7 +15,9 @@ struct Test : BaseStrategy
 
 int main()
 {
-    Driver<Test> driver("aapl.sft");
+    addCompany("MSFT", 2023);
+
+    Driver<Test> driver(DATABASE_DIR "/2023.sft");
     driver.run();
 }
 
@@ -40,6 +42,7 @@ int main6()
 int main3()
 {
     const std::string ticker = "AAPL";
+
     // Get company info
     const auto company = getCompany(ticker);
 
@@ -69,12 +72,6 @@ int main3()
             end_date,
             std::to_string(offset)
         );
-
-        /*
-        if (!i)
-        {
-            count = page["pagination"]["total"].get<double>() / 1000.0;
-        }*/
 
         const auto& data = page["data"];
         const auto retreived = page["pagination"]["count"].get<uint32_t>();

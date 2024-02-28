@@ -81,6 +81,12 @@ namespace util
             assert(false);
         }
 
+        inline static bool
+        exists(const std::string& name)
+        {
+            return names.count(name);
+        }
+
         inline static void
         destroy(const id_t& id)
         {

@@ -14,7 +14,9 @@ target_include_directories(main PRIVATE
     ${CMAKE_SOURCE_DIR}/extern/curlpp/include
     ${CMAKE_SOURCE_DIR}/extern/simple-lua/include)
 
-target_compile_definitions(main PRIVATE SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(main PRIVATE 
+    SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    DATABASE_DIR="${CMAKE_SOURCE_DIR}/files")
 
 target_link_libraries(main PRIVATE curlpp simple-lua)
 

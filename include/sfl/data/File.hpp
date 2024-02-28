@@ -128,11 +128,16 @@ serialize(const std::shared_ptr<Exchange>& value)
 std::shared_ptr<Exchange>
 deExchange(std::ifstream& file)
 {
-    auto d = Exchange::make();
+    std::string name, country, city;
     read_data<uint16_t>(file);
-    d->name    = read_data<std::string>(file);
-    d->country = read_data<std::string>(file);
-    d->city    = read_data<std::string>(file);
+    name    = read_data<std::string>(file);
+    country = read_data<std::string>(file);
+    city    = read_data<std::string>(file);
+
+    auto d = Exchange::makeNamed(name);
+    d->name    = name;
+    d->country = country;
+    d->city    = city;
     return d;
 }
 
@@ -159,7 +164,7 @@ deCompany(std::ifstream& file, std::function<util::id_t(index_type)> get_exchang
     ticker   = read_data<std::string>(file);
     exchange = read_data<index_type>(file);
 
-    auto d = Company::make(get_exchange_id(exchange));
+    auto d = Company::makeNamed(name, get_exchange_id(exchange));
     d->name   = name;
     d->ticker = ticker;
     return d;
@@ -186,7 +191,7 @@ deDatapoint(std::ifstream& file, std::function<util::id_t(index_type)> get_compa
     index_type company;
 
     file.read(reinterpret_cast<char*>(double_data), sizeof(double) * 6);
-    time = read_data<std::size_t>(file);
+    time    = read_data<std::size_t>(file);
     company = read_data<index_type>(file);
 
     auto d = Datapoint::make(get_company_id(company));

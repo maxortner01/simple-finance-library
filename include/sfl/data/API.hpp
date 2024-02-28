@@ -15,6 +15,10 @@
 #define SOURCE_DIR ""
 #endif
 
+#ifndef DATABASE_DIR
+#define DATABASE_DIR
+#endif
+
 namespace sfl
 {
 
@@ -106,6 +110,115 @@ getCompany(
     }();
 
     return nlohmann::json::parse(detail::getResponse(url));
+}
+
+void
+addCompany(
+    const std::string& ticker,
+    uint16_t year)
+{
+    File file;
+    const std::string filename = std::string(DATABASE_DIR) + "/" + std::to_string(static_cast<unsigned int>(year)) + ".sft";
+    {
+        std::ifstream f(
+            filename, 
+            std::ios_base::in | std::ios_base::binary
+        );
+
+        f.close();
+        if (f) file.load(filename);
+    }
+
+    for (const auto& c : file.companies)
+    {
+        auto d = Company::get(c);
+        if (d->ticker == ticker) return;
+    }
+
+    const auto write_file = [&]()
+    {
+        // Get company info
+        const auto company = getCompany(ticker);
+
+        const auto exchange_name = company["stock_exchange"]["acronym"];
+        if (!util::Universe::exists(exchange_name))
+        {
+            auto exchange = file.newExchange(exchange_name);
+            exchange->city    = company["stock_exchange"]["city"];
+            exchange->country = company["stock_exchange"]["country"];
+        }
+
+        auto _company = file.newCompany(company["name"], exchange_name);
+        _company->ticker = company["symbol"];
+
+        const auto start_date = (std::stringstream() << year << "-01-01").str();
+        const auto end_date   = (std::stringstream() << year << "-12-31").str();
+
+        uint32_t offset = 0;
+        bool done = false;
+        while (!done)
+        {
+            const auto page = getIntraday(
+                _company->ticker,
+                "30min",
+                start_date,
+                end_date,
+                std::to_string(offset)
+            );
+
+            const auto& data = page["data"];
+            const auto retreived = page["pagination"]["count"].get<uint32_t>();
+
+            if (retreived != 1000) done = true;
+
+            for (uint32_t j = 0; j < retreived; j++)
+            {
+                if (
+                    !data[j]["date"].is_string() ||
+                    !data[j]["open"].is_number() ||
+                    !data[j]["close"].is_number() ||
+                    !data[j]["high"].is_number() ||
+                    !data[j]["low"].is_number() ||
+                    !data[j]["last"].is_number() 
+                ) continue;
+
+                auto d = file.newDatapoint(_company->name);
+                d->open  = data[j]["open"].get<double>();
+                d->close = data[j]["close"].get<double>();
+                d->high  = data[j]["high"].get<double>();
+                d->low   = data[j]["low"].get<double>();
+                d->last  = data[j]["last"].get<double>();
+
+                const auto date = data[j]["date"].get<std::string>();
+                const auto year = std::stoi(date.substr(0, 4));
+                const auto month = std::stoi(date.substr(5, 2));
+                const auto day = std::stoi(date.substr(8, 2));
+                const auto hour = std::stoi(date.substr(11, 2));
+                const auto minute = std::stoi(date.substr(14, 2));
+                tm _tm{0};
+                _tm.tm_min = minute;
+                _tm.tm_hour = hour;
+                _tm.tm_mday = day;
+                _tm.tm_mon = month - 1;
+                _tm.tm_year = year - 1900;
+                time_t time = mktime(&_tm);
+                d->time = static_cast<std::size_t>(time);
+            }
+
+            offset += retreived;
+        }
+
+        file.write(filename);
+    };
+
+    try
+    {
+        write_file();
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
 }
 
 }
